@@ -1,28 +1,96 @@
+import type { OAuthTokenManager } from "./oauth-token-manager.js";
+
 const API_URL = "https://api.linear.app/graphql";
 
-let apiKey: string | undefined;
+export type AuthMode =
+  | { type: "apiKey"; key: string }
+  | { type: "oauth"; tokenManager: OAuthTokenManager };
 
-export function setApiKey(key: string): void {
-  apiKey = key;
+let auth: AuthMode | undefined;
+
+export function setAuth(mode: AuthMode): void {
+  auth = mode;
 }
 
-/** Reset API key (for testing). */
-export function _resetApiKey(): void {
-  apiKey = undefined;
+/** @deprecated Use setAuth() instead. */
+export function setApiKey(key: string): void {
+  setAuth({ type: "apiKey", key });
+}
+
+/** Reset auth state (for testing). */
+export function _resetAuth(): void {
+  auth = undefined;
+}
+
+/** @deprecated Use _resetAuth() instead. */
+export const _resetApiKey = _resetAuth;
+
+async function getAuthHeader(): Promise<string> {
+  if (!auth) {
+    throw new Error("Linear auth not configured — call setAuth() first");
+  }
+  if (auth.type === "apiKey") {
+    return auth.key;
+  }
+  const token = await auth.tokenManager.getToken();
+  return `Bearer ${token}`;
 }
 
 export async function graphql<T>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<T> {
-  if (!apiKey) {
-    throw new Error("Linear API key not set — call setApiKey() first");
-  }
+  const authorization = await getAuthHeader();
 
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
-      Authorization: apiKey,
+      Authorization: authorization,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (!res.ok) {
+    // On 401 with OAuth, invalidate token and retry once
+    if (res.status === 401 && auth?.type === "oauth") {
+      auth.tokenManager.invalidate();
+      return graphqlOnce<T>(query, variables);
+    }
+
+    let detail = res.statusText;
+    try {
+      const body = await res.text();
+      if (body) detail += `: ${body}`;
+    } catch {
+      // ignore read errors
+    }
+    throw new Error(`Linear API HTTP ${res.status}: ${detail}`);
+  }
+
+  const json = (await res.json()) as {
+    data?: T;
+    errors?: { message: string }[];
+  };
+
+  if (json.errors?.length) {
+    throw new Error(`Linear API error: ${json.errors[0].message}`);
+  }
+
+  return json.data as T;
+}
+
+/** Single attempt — used for 401 retry to avoid infinite loops. */
+async function graphqlOnce<T>(
+  query: string,
+  variables?: Record<string, unknown>,
+): Promise<T> {
+  const authorization = await getAuthHeader();
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: authorization,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query, variables }),

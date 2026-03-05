@@ -17,6 +17,7 @@ type WebhookHandlerDeps = {
     error: (message: string) => void;
   };
   onEvent?: (event: LinearWebhookPayload) => void;
+  onAgentSessionEvent?: (payload: LinearWebhookPayload) => void;
 };
 
 const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
@@ -139,7 +140,11 @@ export function createWebhookHandler(deps: WebhookHandlerDeps) {
     res.end("OK");
 
     try {
-      deps.onEvent?.(event);
+      if (event.type === "AgentSession" && deps.onAgentSessionEvent) {
+        deps.onAgentSessionEvent(event);
+      } else {
+        deps.onEvent?.(event);
+      }
     } catch (err) {
       deps.logger.error(`Event handler error: ${formatErrorMessage(err)}`);
     }

@@ -4,7 +4,8 @@ import { mkdirSync, existsSync } from "node:fs";
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-import { setApiKey } from "./linear-api.js";
+import { setAuth } from "./linear-api.js";
+import { OAuthTokenManager } from "./oauth-token-manager.js";
 import { loadConfig } from "./config.js";
 import { createWebhookHandler } from "./webhook-handler.js";
 import { createEventRouter, type RouterAction } from "./event-router.js";
@@ -18,6 +19,9 @@ import { createCommentTool } from "./tools/linear-comment-tool.js";
 import { createTeamTool } from "./tools/linear-team-tool.js";
 import { createProjectTool } from "./tools/linear-project-tool.js";
 import { createRelationTool } from "./tools/linear-relation-tool.js";
+import { createAgentSessionTool } from "./tools/linear-agent-session-tool.js";
+import { handleAgentSessionEvent } from "./agent-session.js";
+import type { AgentSessionEventPayload } from "./agent-session-types.js";
 
 const DEFAULT_DEBOUNCE_MS = 30_000;
 const DEFAULT_WEBHOOK_PORT = 3456;
@@ -30,13 +34,18 @@ export default function activate(pi: ExtensionAPI): void {
 
   if (!config) {
     console.error(
-      "[linear] Missing LINEAR_API_KEY or LINEAR_WEBHOOK_SECRET — extension is inert. " +
-      "Set env vars or create .pi/linear.json",
+      "[linear] Missing auth config (LINEAR_API_KEY or LINEAR_CLIENT_ID+LINEAR_CLIENT_SECRET) " +
+      "and LINEAR_WEBHOOK_SECRET — extension is inert. Set env vars or create .pi/linear.json",
     );
     return;
   }
 
-  setApiKey(config.apiKey);
+  if (config.clientId && config.clientSecret) {
+    const tokenManager = new OAuthTokenManager(config.clientId, config.clientSecret);
+    setAuth({ type: "oauth", tokenManager });
+  } else if (config.apiKey) {
+    setAuth({ type: "apiKey", key: config.apiKey });
+  }
 
   const agentMapping = config.agentMapping ?? {};
   if (Object.keys(agentMapping).length === 0) {
@@ -71,6 +80,7 @@ export default function activate(pi: ExtensionAPI): void {
     createTeamTool(),
     createProjectTool(),
     createRelationTool(),
+    ...(config.enableAgentSessions ? [createAgentSessionTool()] : []),
   ];
 
   for (const tool of tools) {
@@ -123,6 +133,16 @@ export default function activate(pi: ExtensionAPI): void {
   const handler = createWebhookHandler({
     webhookSecret: config.webhookSecret,
     logger,
+    onAgentSessionEvent: config.enableAgentSessions
+      ? (event) => {
+          handleAgentSessionEvent(
+            event as unknown as AgentSessionEventPayload,
+            pi,
+            queue,
+            logger,
+          );
+        }
+      : undefined,
     onEvent: (event) => {
       const actions = routeEvent(event);
       for (const action of actions) {

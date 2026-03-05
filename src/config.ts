@@ -2,7 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface LinearConfig {
-  apiKey: string;
+  apiKey?: string;
+  clientId?: string;
+  clientSecret?: string;
   webhookSecret: string;
   webhookPort?: number;
   agentMapping?: Record<string, string>;
@@ -10,6 +12,7 @@ export interface LinearConfig {
   eventFilter?: string[];
   debounceMs?: number;
   stateActions?: Record<string, string>;
+  enableAgentSessions?: boolean;
 }
 
 /**
@@ -32,11 +35,18 @@ export function loadConfig(cwd: string): LinearConfig | null {
   }
 
   const apiKey = process.env.LINEAR_API_KEY ?? fileConfig.apiKey;
+  const clientId = process.env.LINEAR_CLIENT_ID ?? fileConfig.clientId;
+  const clientSecret = process.env.LINEAR_CLIENT_SECRET ?? fileConfig.clientSecret;
   const webhookSecret = process.env.LINEAR_WEBHOOK_SECRET ?? fileConfig.webhookSecret;
 
-  if (!apiKey || !webhookSecret) {
-    return null;
-  }
+  if (!webhookSecret) return null;
+  if (!apiKey && !(clientId && clientSecret)) return null;
+
+  const enableAgentSessionsStr = process.env.LINEAR_ENABLE_AGENT_SESSIONS;
+  const enableAgentSessions =
+    enableAgentSessionsStr === "true" || enableAgentSessionsStr === "1"
+      ? true
+      : fileConfig.enableAgentSessions;
 
   const portStr = process.env.LINEAR_WEBHOOK_PORT;
   const webhookPort = portStr ? parseInt(portStr, 10) : fileConfig.webhookPort;
@@ -65,6 +75,8 @@ export function loadConfig(cwd: string): LinearConfig | null {
 
   return {
     apiKey,
+    clientId,
+    clientSecret,
     webhookSecret,
     webhookPort: webhookPort && !isNaN(webhookPort) ? webhookPort : undefined,
     agentMapping,
@@ -72,5 +84,6 @@ export function loadConfig(cwd: string): LinearConfig | null {
     eventFilter,
     debounceMs,
     stateActions: fileConfig.stateActions,
+    enableAgentSessions,
   };
 }
