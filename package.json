@@ -1,0 +1,51 @@
+{
+  "name": "pi-linear",
+  "version": "0.1.0",
+  "description": "Linear integration for pi-mono — webhook routing, issue management, and project tools via the Linear GraphQL API",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "skills",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepack": "npm run build",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "pi-mono",
+    "linear",
+    "webhook",
+    "extension"
+  ],
+  "author": "Stepan Arsentjev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stepandel/pi-linear.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": ">=0.50.0"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "^0.56.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
+  }
+}
