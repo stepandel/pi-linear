@@ -11,6 +11,9 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "bin": {
+    "pi-linear": "./dist/cli/setup.js"
+  },
   "files": [
     "dist",
     "skills",
@@ -20,7 +23,8 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "prepack": "npm run build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "setup": "node dist/cli/setup.js"
   },
   "keywords": [
     "pi-mono",
