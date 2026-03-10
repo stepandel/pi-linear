@@ -153,17 +153,44 @@ async function runAgent(
   payload: AgentSessionEventPayload,
   prompt: string
 ): Promise<void> {
+  const tag = payload.agentSession.issue?.identifier ?? linearSessionId.slice(0, 8);
+  console.log(`[agent:${tag}] Starting agent session`);
+
   const cwd = process.cwd();
   const systemPrompt = buildSystemPrompt(payload);
   const session = await createSession(cwd, systemPrompt);
 
   activeSessions.set(linearSessionId, session);
 
-  // Stream agent events to Linear activities
+  // Stream agent events to Linear activities + terminal logs
   let lastText = "";
   session.subscribe((event) => {
     switch (event.type) {
+      case "agent_start":
+        console.log(`[agent:${tag}] Agent started`);
+        break;
+      case "agent_end":
+        console.log(`[agent:${tag}] Agent finished`);
+        break;
+      case "turn_start":
+        console.log(`[agent:${tag}] Turn started`);
+        break;
+      case "turn_end":
+        console.log(`[agent:${tag}] Turn ended`);
+        break;
+      case "message_start":
+        console.log(`[agent:${tag}] Assistant message started`);
+        break;
+      case "message_end":
+        console.log(`[agent:${tag}] Assistant message ended`);
+        break;
       case "tool_execution_start": {
+        console.log(
+          `[agent:${tag}] Tool start: ${event.toolName}`,
+          typeof event.args === "string"
+            ? truncate(event.args, 100)
+            : truncate(JSON.stringify(event.args), 100)
+        );
         activity.action(linearSessionId, `Running ${event.toolName}`);
         break;
       }
@@ -173,6 +200,11 @@ async function runAgent(
             ? event.result
             : JSON.stringify(event.result ?? "");
         const preview = truncate(resultText, 200);
+        console.log(
+          `[agent:${tag}] Tool end: ${event.toolName}`,
+          event.isError ? "(ERROR)" : "",
+          truncate(resultText, 150)
+        );
         activity.action(
           linearSessionId,
           `Ran ${event.toolName}`,
@@ -183,7 +215,9 @@ async function runAgent(
       }
       case "message_update": {
         if (event.assistantMessageEvent?.type === "text_delta") {
-          lastText += event.assistantMessageEvent.delta;
+          const delta = event.assistantMessageEvent.delta;
+          process.stdout.write(delta);
+          lastText += delta;
         }
         break;
       }
@@ -195,7 +229,12 @@ async function runAgent(
 
     // Send final response
     const response = lastText.trim() || "Done.";
+    console.log(`\n[agent:${tag}] Sending response (${response.length} chars)`);
     await activity.response(linearSessionId, response);
+    console.log(`[agent:${tag}] Done`);
+  } catch (err) {
+    console.error(`[agent:${tag}] Error:`, err);
+    throw err;
   } finally {
     activeSessions.delete(linearSessionId);
   }
