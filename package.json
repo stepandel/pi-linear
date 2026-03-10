@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "tunnel": "ngrok http 3000",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
     "build": "tsc",
     "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit"
