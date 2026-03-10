@@ -86,7 +86,7 @@ export interface AgentActivityPayload {
 
 export type AgentActivityContent =
   | { type: "thought"; body: string }
-  | { type: "action"; action: string; parameter?: string; result?: string }
+  | { type: "action"; action: string; parameter: string; result?: string }
   | { type: "response"; body: string }
   | { type: "error"; body: string }
   | { type: "elicitation"; body: string }

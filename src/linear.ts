@@ -77,14 +77,13 @@ export const activity = {
   action(
     sessionId: string,
     action: string,
-    parameter?: string,
+    parameter: string = "",
     result?: string
   ) {
-    return emitActivity(
-      sessionId,
-      { type: "action", action, parameter, result },
-      { ephemeral: !result }
-    );
+    const content: AgentActivityContent = result
+      ? { type: "action", action, parameter, result }
+      : { type: "action", action, parameter };
+    return emitActivity(sessionId, content, { ephemeral: !result });
   },
 
   response(sessionId: string, body: string) {
